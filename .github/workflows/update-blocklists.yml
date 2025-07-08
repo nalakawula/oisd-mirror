@@ -1,0 +1,96 @@
+name: Update OISD Blocklists
+
+on:
+  schedule:
+    # Run every 24 hours at 2 AM UTC
+    - cron: '0 2 * * *'
+  workflow_dispatch: # Allow manual triggering
+
+jobs:
+  update-blocklists:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      with:
+        token: ${{ secrets.GITHUB_TOKEN }}
+    
+    - name: Download OISD Big blocklist
+      run: |
+        echo "Downloading OISD Big blocklist..."
+        curl -L -o oisd_big_temp https://big.oisd.nl/domainswild
+        
+        # Check if download was successful
+        if [ $? -eq 0 ] && [ -s oisd_big_temp ]; then
+          mv oisd_big_temp oisd_big
+          echo "✅ OISD Big blocklist updated successfully"
+        else
+          echo "❌ Failed to download OISD Big blocklist"
+          exit 1
+        fi
+    
+    - name: Download OISD NSFW blocklist
+      run: |
+        echo "Downloading OISD NSFW blocklist..."
+        curl -L -o oisd_nsfw_temp https://nsfw.oisd.nl/domainswild
+        
+        # Check if download was successful
+        if [ $? -eq 0 ] && [ -s oisd_nsfw_temp ]; then
+          mv oisd_nsfw_temp oisd_nsfw
+          echo "✅ OISD NSFW blocklist updated successfully"
+        else
+          echo "❌ Failed to download OISD NSFW blocklist"
+          exit 1
+        fi
+    
+    - name: Check for changes
+      id: changes
+      run: |
+        git config --local user.email "action@github.com"
+        git config --local user.name "GitHub Action"
+        
+        # Check if there are any changes
+        if git diff --quiet; then
+          echo "No changes detected"
+          echo "has_changes=false" >> $GITHUB_OUTPUT
+        else
+          echo "Changes detected"
+          echo "has_changes=true" >> $GITHUB_OUTPUT
+        fi
+    
+    - name: Commit and push changes
+      if: steps.changes.outputs.has_changes == 'true'
+      run: |
+        git add oisd_big oisd_nsfw
+        git commit -m "🔄 Update OISD blocklists - $(date -u '+%Y-%m-%d %H:%M:%S UTC')"
+        git push
+    
+    - name: Create summary
+      run: |
+        echo "## 📊 Blocklist Update Summary" >> $GITHUB_STEP_SUMMARY
+        echo "| List | Status | Size |" >> $GITHUB_STEP_SUMMARY
+        echo "|------|--------|------|" >> $GITHUB_STEP_SUMMARY
+        
+        if [ -f oisd_big ]; then
+          BIG_SIZE=$(wc -l < oisd_big)
+          echo "| OISD Big | ✅ Updated | ${BIG_SIZE} domains |" >> $GITHUB_STEP_SUMMARY
+        else
+          echo "| OISD Big | ❌ Failed | - |" >> $GITHUB_STEP_SUMMARY
+        fi
+        
+        if [ -f oisd_nsfw ]; then
+          NSFW_SIZE=$(wc -l < oisd_nsfw)
+          echo "| OISD NSFW | ✅ Updated | ${NSFW_SIZE} domains |" >> $GITHUB_STEP_SUMMARY
+        else
+          echo "| OISD NSFW | ❌ Failed | - |" >> $GITHUB_STEP_SUMMARY
+        fi
+        
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "**Last updated:** $(date -u '+%Y-%m-%d %H:%M:%S UTC')" >> $GITHUB_STEP_SUMMARY
+        
+        if [ "${{ steps.changes.outputs.has_changes }}" == "true" ]; then
+          echo "**Changes:** New domains added/removed" >> $GITHUB_STEP_SUMMARY
+        else
+          echo "**Changes:** No changes detected" >> $GITHUB_STEP_SUMMARY
+        fi

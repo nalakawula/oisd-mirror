@@ -1,0 +1,35 @@
+connectIPVersion: v4
+bootstrapDns:
+  - tcp+udp:1.1.1.1
+  - tcp+udp:9.9.9.10
+  - tcp+udp:149.112.112.10
+upstreams:
+  groups:
+    default:
+      - https://94.140.14.140/dns-query
+      - https://94.140.14.141/dns-query
+blocking:
+  denylists:
+    ads:
+      - https://big.oisd.nl/domainswild
+      - /home/sumar/blocky/oisd_big
+    nsfw:
+      - https://nsfw.oisd.nl/domainswild
+      - /home/sumar/blocky/oisd_nsfw
+  clientGroupsBlock:
+    default:
+      - ads
+      - nsfw
+loading:
+  refreshPeriod: 24h
+ports:
+  dns: 53
+  http: 8080
+prometheus:
+  enable: true
+  path: /metrics
+customDNS:
+  customTTL: 1m
+  filterUnmappedTypes: true
+  mapping:
+    sub.sumar.my.id: 100.101.58.11
